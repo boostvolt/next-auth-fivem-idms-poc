@@ -1,44 +1,60 @@
-import NextAuth, { NextAuthOptions } from "next-auth"
-import GoogleProvider from "next-auth/providers/google"
-import FacebookProvider from "next-auth/providers/facebook"
-import GithubProvider from "next-auth/providers/github"
-import TwitterProvider from "next-auth/providers/twitter"
-import Auth0Provider from "next-auth/providers/auth0"
+import NextAuth from "next-auth";
 
-// For more information on each option (and a full list of options) go to
-// https://next-auth.js.org/configuration/options
-export const authOptions: NextAuthOptions = {
-  // https://next-auth.js.org/configuration/providers/oauth
+export default NextAuth({
   providers: [
-    Auth0Provider({
-      clientId: process.env.AUTH0_ID,
-      clientSecret: process.env.AUTH0_SECRET,
-      issuer: process.env.AUTH0_ISSUER,
-    }),
-    FacebookProvider({
-      clientId: process.env.FACEBOOK_ID,
-      clientSecret: process.env.FACEBOOK_SECRET,
-    }),
-    GithubProvider({
-      clientId: process.env.GITHUB_ID,
-      clientSecret: process.env.GITHUB_SECRET,
-    }),
-    GoogleProvider({
-      clientId: process.env.GOOGLE_ID,
-      clientSecret: process.env.GOOGLE_SECRET,
-    }),
-    TwitterProvider({
-      clientId: process.env.TWITTER_ID,
-      clientSecret: process.env.TWITTER_SECRET,
-      version: "2.0",
-    }),
+    {
+      id: "FiveM",
+      name: "FiveM",
+      type: "oauth",
+      wellKnown: "https://idms.fivem.net/.well-known/openid-configuration",
+      authorization: {
+        params: { scope: "openid email identify" },
+      },
+      clientId: "txadmin_test",
+      clientSecret: "txadmin_test",
+      async profile(profile, token) {
+        const response = await fetch(
+          "https://idms.fivem.net/connect/userinfo",
+          {
+            headers: {
+              Authorization: `Bearer ${token.access_token}`,
+            },
+          }
+        );
+        const data = await response.json();
+        return {
+          id: data.sub,
+          name: data.name,
+          email: data.email,
+          image: data.picture,
+        };
+      },
+    },
   ],
+  secret: process.env.NEXTAUTH_SECRET,
+  debug: true,
+  session: {
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+    updateAge: 24 * 60 * 60, // 24 hours
+  },
+  jwt: {
+    maxAge: 60 * 60 * 24 * 30,
+  },
   callbacks: {
-    async jwt({ token }) {
-      token.userRole = "admin"
-      return token
+    async signIn({ user, account, profile, email, credentials }) {
+      return true;
+    },
+    async redirect({ url, baseUrl }) {
+      return baseUrl;
+    },
+    async session({ session, token, user }) {
+      return session;
+    },
+    async jwt({ token, user, account, profile, isNewUser }) {
+      if (account?.accessToken) {
+        token.accessToken = account.accessToken;
+      }
+      return token;
     },
   },
-}
-
-export default NextAuth(authOptions)
+});
